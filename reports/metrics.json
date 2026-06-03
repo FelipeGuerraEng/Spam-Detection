@@ -1,0 +1,85 @@
+{
+  "dataset": {
+    "rows_after_cleaning": 5158,
+    "label_counts": {
+      "ham": 4516,
+      "spam": 642
+    },
+    "label_distribution_percent": {
+      "ham": 87.55,
+      "spam": 12.45
+    },
+    "is_imbalanced": true
+  },
+  "split": {
+    "train_rows": 4126,
+    "test_rows": 1032,
+    "test_size": 0.2,
+    "stratified": true,
+    "random_state": 42
+  },
+  "best_params": {
+    "classifier__C": 2.0,
+    "tfidf__min_df": 2,
+    "tfidf__ngram_range": [
+      1,
+      2
+    ]
+  },
+  "cv_best_f1": 0.9295396735376349,
+  "test_metrics": {
+    "accuracy": 0.9883720930232558,
+    "precision_spam": 0.9603174603174603,
+    "recall_spam": 0.9453125,
+    "f1_spam": 0.952755905511811,
+    "roc_auc": 0.9971653761061947,
+    "average_precision": 0.9841310725202493
+  },
+  "confusion_matrix": {
+    "labels": [
+      "ham",
+      "spam"
+    ],
+    "matrix": [
+      [
+        899,
+        5
+      ],
+      [
+        7,
+        121
+      ]
+    ],
+    "tn_ham_as_ham": 899,
+    "fp_ham_as_spam": 5,
+    "fn_spam_as_ham": 7,
+    "tp_spam_as_spam": 121
+  },
+  "classification_report": {
+    "ham": {
+      "precision": 0.9922737306843267,
+      "recall": 0.9944690265486725,
+      "f1-score": 0.9933701657458563,
+      "support": 904.0
+    },
+    "spam": {
+      "precision": 0.9603174603174603,
+      "recall": 0.9453125,
+      "f1-score": 0.952755905511811,
+      "support": 128.0
+    },
+    "accuracy": 0.9883720930232558,
+    "macro avg": {
+      "precision": 0.9762955955008935,
+      "recall": 0.9698907632743363,
+      "f1-score": 0.9730630356288337,
+      "support": 1032.0
+    },
+    "weighted avg": {
+      "precision": 0.9883101622667309,
+      "recall": 0.9883720930232558,
+      "f1-score": 0.9883327381199283,
+      "support": 1032.0
+    }
+  }
+}
