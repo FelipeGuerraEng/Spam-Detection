@@ -9,6 +9,11 @@ import streamlit as st
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from app.huggingface_utils import (
+    HUGGINGFACE_MODEL_ID,
+    load_huggingface_model,
+    predict_message_huggingface,
+)
 from app.model_utils import METRICS_PATH, MODEL_PATH, load_model, predict_message
 
 
@@ -20,6 +25,11 @@ def get_model():
     return load_model(MODEL_PATH)
 
 
+@st.cache_resource
+def get_huggingface_model():
+    return load_huggingface_model(HUGGINGFACE_MODEL_ID)
+
+
 @st.cache_data
 def get_metrics():
     if METRICS_PATH.exists():
@@ -29,14 +39,19 @@ def get_metrics():
 
 st.title("SMS Spam Detector")
 st.write(
-    "Simple spam classifier trained with TF-IDF features and Logistic Regression."
+    "Simple spam classifier with local and Hugging Face inference options."
 )
 
-if not MODEL_PATH.exists():
-    st.error(
-        "The trained model was not found. Model training is required before application startup."
-    )
-    st.stop()
+model_options = {
+    "Local TF-IDF": "local",
+    "Hugging Face": "huggingface",
+}
+selected_model = st.radio(
+    "Detection model",
+    options=list(model_options.keys()),
+    horizontal=True,
+)
+selected_model_key = model_options[selected_model]
 
 message = st.text_area(
     "SMS message",
@@ -45,7 +60,22 @@ message = st.text_area(
 )
 
 if st.button("Detect spam", type="primary"):
-    result = predict_message(get_model(), message)
+    if selected_model_key == "local":
+        if not MODEL_PATH.exists():
+            st.error(
+                "The trained local model was not found. Model training is required before local inference."
+            )
+            st.stop()
+        result = predict_message(get_model(), message)
+    else:
+        try:
+            with st.spinner("Loading Hugging Face model..."):
+                result = predict_message_huggingface(get_huggingface_model(), message)
+        except Exception as exc:
+            st.error("The Hugging Face model could not be loaded or executed.")
+            st.caption(str(exc))
+            st.stop()
+
     probability = result["spam_probability"]
 
     if result["label"] == "empty":
@@ -54,6 +84,12 @@ if st.button("Detect spam", type="primary"):
         st.error(f"Prediction: SPAM ({probability:.1%} spam probability)")
     else:
         st.success(f"Prediction: HAM ({probability:.1%} spam probability)")
+
+    if selected_model_key == "huggingface" and result["label"] != "empty":
+        st.caption(
+            f"Hugging Face label: {result['source_label']} "
+            f"({result['confidence']:.1%} confidence)."
+        )
 
 metrics = get_metrics()
 if metrics:

@@ -2,10 +2,16 @@
 
 Simple machine learning project to detect spam in SMS messages. The solution follows a basic data science workflow: exploratory data analysis, leakage-aware train/test split, TF-IDF text representation, Logistic Regression, model evaluation, and a Streamlit web app for inference.
 
+The Streamlit app supports two detection engines:
+
+- Local TF-IDF + Logistic Regression model trained by this project.
+- External Hugging Face model: `Goodmotion/spam-mail-classifier`.
+
 
 ## Project Structure
 
-- `spam.csv`: SMS Spam Collection dataset.
+- `spam.csv`: SMS Spam Collection dataset used for local model training.
+- `sms+spam+collection/`: external SMS collection used only for functional validation of inference.
 - `app/`: Python source code for training, inference, and the Streamlit app.
 - `notebook/`: Jupyter notebook with the step-by-step data science process.
 - `models/`: trained model artifact used by the app.
@@ -16,7 +22,7 @@ Simple machine learning project to detect spam in SMS messages. The solution fol
 
 ## Data Science Process
 
-The dataset contains SMS messages labeled as `ham` or `spam`. During cleaning, only the useful columns are kept, empty messages are removed, labels are normalized, and duplicated messages are removed before splitting to reduce leakage risk.
+The training dataset contains SMS messages labeled as `ham` or `spam`. During cleaning, only the useful columns are kept, empty messages are removed, labels are normalized, and duplicated messages are removed before splitting to reduce leakage risk.
 
 The dataset is imbalanced after cleaning:
 
@@ -25,6 +31,8 @@ The dataset is imbalanced after cleaning:
 - Total rows after cleaning: 5,158.
 
 Because spam is the minority class, the project uses a stratified split and `class_weight="balanced"` in Logistic Regression. The final model is a Scikit-learn `Pipeline` with `TfidfVectorizer` and `LogisticRegression`, so TF-IDF is fitted only on training folds and not on the full dataset.
+
+The `sms+spam+collection/SMSSpamCollection` file is not used for training or fine tuning. It is loaded by functional tests as an external validation dataset for inference behavior.
 
 Overfitting and data leakage controls:
 
@@ -77,6 +85,8 @@ Streamlit application execution:
 streamlit run app/streamlit_app.py
 ```
 
+The first Hugging Face inference can take longer because the external model is loaded into memory.
+
 Functional test execution:
 
 ```bash
@@ -90,6 +100,8 @@ Image build after model training:
 ```bash
 docker build -t spam-detector .
 ```
+
+The Docker build downloads and caches the Hugging Face model in the image so both inference options are available from Streamlit.
 
 Container execution:
 
