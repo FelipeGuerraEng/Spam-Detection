@@ -14,7 +14,7 @@ COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --frozen --no-dev
 
 COPY app ./app
-RUN python -c "from app.huggingface_utils import HUGGINGFACE_MODEL_ID, load_huggingface_model; load_huggingface_model(HUGGINGFACE_MODEL_ID)"
+RUN python -c "from app.huggingface_utils import HUGGINGFACE_MODEL_SPECS, load_huggingface_model; [load_huggingface_model(spec['model_id']) for spec in HUGGINGFACE_MODEL_SPECS.values()]"
 
 COPY models ./models
 COPY reports ./reports

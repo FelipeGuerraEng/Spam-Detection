@@ -1,0 +1,90 @@
+{
+  "model": {
+    "key": "random_forest",
+    "label": "Local TF-IDF + Random Forest"
+  },
+  "dataset": {
+    "rows_after_cleaning": 5158,
+    "label_counts": {
+      "ham": 4516,
+      "spam": 642
+    },
+    "label_distribution_percent": {
+      "ham": 87.55,
+      "spam": 12.45
+    },
+    "is_imbalanced": true
+  },
+  "split": {
+    "train_rows": 4126,
+    "test_rows": 1032,
+    "test_size": 0.2,
+    "stratified": true,
+    "random_state": 42
+  },
+  "best_params": {
+    "classifier__max_depth": null,
+    "classifier__min_samples_leaf": 2,
+    "tfidf__min_df": 1,
+    "tfidf__ngram_range": [
+      1,
+      1
+    ]
+  },
+  "cv_best_f1": 0.9232382088928406,
+  "test_metrics": {
+    "accuracy": 0.9796511627906976,
+    "precision_spam": 0.9819819819819819,
+    "recall_spam": 0.8515625,
+    "f1_spam": 0.9121338912133892,
+    "roc_auc": 0.9982888550884956,
+    "average_precision": 0.9894202422034518
+  },
+  "confusion_matrix": {
+    "labels": [
+      "ham",
+      "spam"
+    ],
+    "matrix": [
+      [
+        902,
+        2
+      ],
+      [
+        19,
+        109
+      ]
+    ],
+    "tn_ham_as_ham": 902,
+    "fp_ham_as_spam": 2,
+    "fn_spam_as_ham": 19,
+    "tp_spam_as_spam": 109
+  },
+  "classification_report": {
+    "ham": {
+      "precision": 0.9793702497285559,
+      "recall": 0.9977876106194691,
+      "f1-score": 0.9884931506849315,
+      "support": 904.0
+    },
+    "spam": {
+      "precision": 0.9819819819819819,
+      "recall": 0.8515625,
+      "f1-score": 0.9121338912133892,
+      "support": 128.0
+    },
+    "accuracy": 0.9796511627906976,
+    "macro avg": {
+      "precision": 0.9806761158552689,
+      "recall": 0.9246750553097345,
+      "f1-score": 0.9503135209491603,
+      "support": 1032.0
+    },
+    "weighted avg": {
+      "precision": 0.9796941855119266,
+      "recall": 0.9796511627906976,
+      "f1-score": 0.9790222347814844,
+      "support": 1032.0
+    }
+  }
+}

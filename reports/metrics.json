@@ -1,4 +1,8 @@
 {
+  "model": {
+    "key": "logistic_regression",
+    "label": "Local TF-IDF + Logistic Regression"
+  },
   "dataset": {
     "rows_after_cleaning": 5158,
     "label_counts": {

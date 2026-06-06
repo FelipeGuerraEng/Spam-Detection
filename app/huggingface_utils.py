@@ -10,14 +10,25 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SMS_TEST_DATASET_PATH = PROJECT_ROOT / "sms+spam+collection" / "SMSSpamCollection"
 HUGGINGFACE_MODEL_ID = "Goodmotion/spam-mail-classifier"
-HUGGINGFACE_LABELS = ("NOSPAM", "SPAM")
+SECONDARY_HUGGINGFACE_MODEL_ID = "niru-nny/SMS_Spam_Detection"
+HUGGINGFACE_MODEL_SPECS = {
+    "goodmotion": {
+        "label": "Hugging Face: Goodmotion spam-mail-classifier",
+        "model_id": HUGGINGFACE_MODEL_ID,
+    },
+    "niru_nny": {
+        "label": "Hugging Face: niru-nny SMS Spam Detection",
+        "model_id": SECONDARY_HUGGINGFACE_MODEL_ID,
+    },
+}
+HUGGINGFACE_LABELS = ("HAM", "NOSPAM", "NOT_SPAM", "LABEL_0", "SPAM", "LABEL_1")
 HUGGINGFACE_MAX_LENGTH = 128
 
 
 @dataclass(frozen=True)
 class HuggingFaceSpamClassifier:
-    tokenizer: Any
-    model: Any
+    model_id: str
+    pipeline: Any
 
 
 def load_sms_test_dataset(data_path: Path = SMS_TEST_DATASET_PATH) -> pd.DataFrame:
@@ -41,7 +52,7 @@ def load_huggingface_model(
     model_id: str = HUGGINGFACE_MODEL_ID,
 ) -> HuggingFaceSpamClassifier:
     """Load the external Hugging Face classifier for inference."""
-    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
 
     local_files_only = _is_huggingface_model_cached(model_id)
     tokenizer = AutoTokenizer.from_pretrained(
@@ -52,8 +63,12 @@ def load_huggingface_model(
         model_id,
         local_files_only=local_files_only,
     )
-    model.eval()
-    return HuggingFaceSpamClassifier(tokenizer=tokenizer, model=model)
+    classifier = pipeline(
+        "text-classification",
+        model=model,
+        tokenizer=tokenizer,
+    )
+    return HuggingFaceSpamClassifier(model_id=model_id, pipeline=classifier)
 
 
 def predict_message_huggingface(
@@ -70,30 +85,42 @@ def predict_message_huggingface(
             "source_label": "EMPTY",
         }
 
-    import torch
-
-    inputs = classifier.tokenizer(
+    raw_scores = classifier.pipeline(
         text,
-        padding=False,
+        top_k=None,
         truncation=True,
         max_length=HUGGINGFACE_MAX_LENGTH,
-        return_tensors="pt",
     )
+    scores = raw_scores[0] if raw_scores and isinstance(raw_scores[0], list) else raw_scores
+    spam_score = 0.0
+    ham_score = 0.0
+    best_label = ""
+    best_score = 0.0
 
-    with torch.no_grad():
-        logits = classifier.model(**inputs).logits
-        probabilities = torch.softmax(logits, dim=-1)[0]
+    for item in scores:
+        source_label = str(item["label"]).upper()
+        score = float(item["score"])
+        if score > best_score:
+            best_label = source_label
+            best_score = score
+        if "SPAM" in source_label and not source_label.startswith(("NO", "NOT")):
+            spam_score = max(spam_score, score)
+        elif source_label in {"LABEL_1"}:
+            spam_score = max(spam_score, score)
+        else:
+            ham_score = max(ham_score, score)
 
-    nospam_probability = float(probabilities[0].item())
-    spam_probability = float(probabilities[1].item())
-    label = "spam" if spam_probability >= nospam_probability else "ham"
-    source_label = HUGGINGFACE_LABELS[1] if label == "spam" else HUGGINGFACE_LABELS[0]
+    if spam_score == 0.0 and ham_score == 0.0:
+        spam_score = best_score if "SPAM" in best_label else 1.0 - best_score
+        ham_score = 1.0 - spam_score
+
+    label = "spam" if spam_score >= ham_score else "ham"
 
     return {
         "label": label,
-        "spam_probability": spam_probability,
-        "confidence": max(nospam_probability, spam_probability),
-        "source_label": source_label,
+        "spam_probability": spam_score,
+        "confidence": max(spam_score, ham_score),
+        "source_label": best_label,
     }
 
 
