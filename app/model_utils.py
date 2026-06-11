@@ -20,6 +20,7 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import GridSearchCV, StratifiedKFold, train_test_split
 from sklearn.pipeline import Pipeline
+from sklearn.ensemble import RandomForestClassifier
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +28,23 @@ DATA_PATH = PROJECT_ROOT / "spam.csv"
 MODEL_PATH = PROJECT_ROOT / "models" / "spam_model.joblib"
 METRICS_PATH = PROJECT_ROOT / "reports" / "metrics.json"
 RANDOM_STATE = 42
+LOCAL_MODEL_SPECS: dict[str, dict[str, Any]] = {
+    "logistic_regression": {
+        "label": "Local TF-IDF + Logistic Regression",
+        "model_path": MODEL_PATH,
+        "metrics_path": METRICS_PATH,
+    },
+    "random_forest": {
+        "label": "Local TF-IDF + Random Forest",
+        "model_path": PROJECT_ROOT / "models" / "random_forest_model.joblib",
+        "metrics_path": PROJECT_ROOT / "reports" / "random_forest_metrics.json",
+    },
+    "xgboost": {
+        "label": "Local TF-IDF + XGBoost",
+        "model_path": PROJECT_ROOT / "models" / "xgboost_model.joblib",
+        "metrics_path": PROJECT_ROOT / "reports" / "xgboost_metrics.json",
+    },
+}
 
 
 def load_sms_dataset(data_path: Path = DATA_PATH) -> pd.DataFrame:
@@ -45,8 +63,36 @@ def load_sms_dataset(data_path: Path = DATA_PATH) -> pd.DataFrame:
     return df
 
 
-def build_pipeline() -> Pipeline:
-    """Build the text classification pipeline."""
+def build_pipeline(model_key: str = "logistic_regression") -> Pipeline:
+    """Build a text classification pipeline for one local model."""
+    if model_key == "logistic_regression":
+        classifier = LogisticRegression(
+            class_weight="balanced",
+            max_iter=1000,
+            solver="liblinear",
+            random_state=RANDOM_STATE,
+        )
+    elif model_key == "random_forest":
+        classifier = RandomForestClassifier(
+            class_weight="balanced",
+            n_estimators=250,
+            random_state=RANDOM_STATE,
+            n_jobs=-1,
+        )
+    elif model_key == "xgboost":
+        from xgboost import XGBClassifier
+
+        classifier = XGBClassifier(
+            objective="binary:logistic",
+            eval_metric="logloss",
+            random_state=RANDOM_STATE,
+            n_jobs=-1,
+            scale_pos_weight=7.0,
+            tree_method="hist",
+        )
+    else:
+        raise ValueError(f"Unknown local model: {model_key}")
+
     return Pipeline(
         steps=[
             (
@@ -60,25 +106,45 @@ def build_pipeline() -> Pipeline:
                     sublinear_tf=True,
                 ),
             ),
-            (
-                "classifier",
-                LogisticRegression(
-                    class_weight="balanced",
-                    max_iter=1000,
-                    solver="liblinear",
-                    random_state=RANDOM_STATE,
-                ),
-            ),
+            ("classifier", classifier),
         ]
     )
+
+
+def get_param_grid(model_key: str) -> dict[str, list[Any]]:
+    """Return a compact hyperparameter grid for a local model."""
+    base_grid: dict[str, list[Any]] = {
+        "tfidf__min_df": [1, 2],
+        "tfidf__ngram_range": [(1, 1), (1, 2)],
+    }
+    if model_key == "logistic_regression":
+        return {**base_grid, "classifier__C": [0.5, 1.0, 2.0]}
+    if model_key == "random_forest":
+        return {
+            **base_grid,
+            "classifier__max_depth": [None, 30],
+            "classifier__min_samples_leaf": [1, 2],
+        }
+    if model_key == "xgboost":
+        return {
+            **base_grid,
+            "classifier__n_estimators": [150, 250],
+            "classifier__max_depth": [3, 5],
+            "classifier__learning_rate": [0.05, 0.1],
+        }
+    raise ValueError(f"Unknown local model: {model_key}")
 
 
 def train_model(
     data_path: Path = DATA_PATH,
     model_path: Path = MODEL_PATH,
     metrics_path: Path = METRICS_PATH,
+    model_key: str = "logistic_regression",
 ) -> dict[str, Any]:
-    """Train, evaluate, and persist the spam detector."""
+    """Train, evaluate, and persist one local spam detector."""
+    if model_key not in LOCAL_MODEL_SPECS:
+        raise ValueError(f"Unknown local model: {model_key}")
+
     df = load_sms_dataset(data_path)
     x = df["message"]
     y = df["target"]
@@ -93,12 +159,8 @@ def train_model(
 
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
     search = GridSearchCV(
-        estimator=build_pipeline(),
-        param_grid={
-            "tfidf__min_df": [1, 2],
-            "tfidf__ngram_range": [(1, 1), (1, 2)],
-            "classifier__C": [0.5, 1.0, 2.0],
-        },
+        estimator=build_pipeline(model_key),
+        param_grid=get_param_grid(model_key),
         scoring="f1",
         cv=cv,
         n_jobs=-1,
@@ -115,6 +177,10 @@ def train_model(
     cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
 
     metrics: dict[str, Any] = {
+        "model": {
+            "key": model_key,
+            "label": str(LOCAL_MODEL_SPECS[model_key]["label"]),
+        },
         "dataset": {
             "rows_after_cleaning": int(len(df)),
             "label_counts": {str(k): int(v) for k, v in label_counts.items()},
@@ -162,6 +228,19 @@ def train_model(
     joblib.dump(best_model, model_path)
     metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     return metrics
+
+
+def train_all_local_models(data_path: Path = DATA_PATH) -> dict[str, dict[str, Any]]:
+    """Train and persist every configured local model."""
+    results = {}
+    for model_key, spec in LOCAL_MODEL_SPECS.items():
+        results[model_key] = train_model(
+            data_path=data_path,
+            model_path=Path(spec["model_path"]),
+            metrics_path=Path(spec["metrics_path"]),
+            model_key=model_key,
+        )
+    return results
 
 
 def load_model(model_path: Path = MODEL_PATH) -> Pipeline:

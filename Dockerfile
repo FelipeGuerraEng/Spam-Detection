@@ -1,4 +1,5 @@
 FROM python:3.11-slim
+COPY --from=ghcr.io/astral-sh/uv:0.10.12 /uv /uvx /bin/
 
 WORKDIR /app
 
@@ -7,12 +8,13 @@ ENV PYTHONUNBUFFERED=1
 ENV HF_HOME=/app/.cache/huggingface
 ENV HF_HUB_DISABLE_TELEMETRY=1
 ENV TRANSFORMERS_NO_ADVISORY_WARNINGS=1
+ENV PATH="/app/.venv/bin:$PATH"
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --frozen --no-dev
 
 COPY app ./app
-RUN python -c "from app.huggingface_utils import HUGGINGFACE_MODEL_ID, load_huggingface_model; load_huggingface_model(HUGGINGFACE_MODEL_ID)"
+RUN python -c "from app.huggingface_utils import HUGGINGFACE_MODEL_SPECS, load_huggingface_model; [load_huggingface_model(spec['model_id']) for spec in HUGGINGFACE_MODEL_SPECS.values()]"
 
 COPY models ./models
 COPY reports ./reports
